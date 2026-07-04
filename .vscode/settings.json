@@ -1,0 +1,9 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python.defaultInterpreterPath": "D:/RepoMind/repomind-backend/venv/Scripts/python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}",
+        "${workspaceFolder}/repomind-backend",
+        "${workspaceFolder}/repomind-backend/venv/Lib/site-packages"
+    ]
+}
