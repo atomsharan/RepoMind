@@ -86,6 +86,7 @@ export interface AnalysisStatus {
   current_stage: string;
   progress: number;
   message: string;
+  error?: string;
 }
 
 export interface ChatQuestion {

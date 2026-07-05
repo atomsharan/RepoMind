@@ -105,6 +105,24 @@ class LLMClient:
         )
 
 
+def try_create_llm_client() -> LLMClient | None:
+    if not _llm_configured():
+        return None
+    try:
+        return LLMClient()
+    except LLMConfigurationError:
+        return None
+
+
+def _llm_configured() -> bool:
+    provider = (_setting("LLM_PROVIDER", "gemini") or "gemini").lower()
+    if provider == "gemini":
+        return bool(_setting("GEMINI_API_KEY", ""))
+    if provider == "ollama":
+        return bool(_setting("OLLAMA_BASE_URL", "http://localhost:11434"))
+    return False
+
+
 def _setting(name: str, default=None, cast=None):
     if settings.configured and hasattr(settings, name):
         value = getattr(settings, name)

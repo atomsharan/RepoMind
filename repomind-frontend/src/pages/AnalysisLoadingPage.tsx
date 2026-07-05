@@ -154,7 +154,11 @@ const AnalysisLoadingPage: React.FC = () => {
             }, 800);
           } else if (statusRes.status === 'failed') {
             if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
-            setError("The backend reported a failure while analyzing this repository.");
+            setError(
+              statusRes.error ||
+              statusRes.message ||
+              'The backend reported a failure while analyzing this repository.'
+            );
           }
         } catch (err: any) {
           console.error("Polling error:", err);

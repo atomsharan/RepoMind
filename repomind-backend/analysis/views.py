@@ -3,36 +3,35 @@ from datetime import datetime, timezone
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Analysis
+from .repository_analyzer import (
+    RepositoryAnalysisError,
+    answer_question,
+    build_repository_analysis,
+)
 from .serializers import (
-    AnalysisCreateSerializer,
     AnalysisCreateResponseSerializer,
+    AnalysisCreateSerializer,
     AnalysisStatusSerializer,
     AskQuestionSerializer,
 )
-from . import mock_data
 
-
-class ValidationError(Exception):
-    pass
 
 GITHUB_URL_PATTERN = re.compile(
     r'^https?://github\.com/(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+?)(?:\.git)?/?$'
 )
 
-# V1 has no real worker. We simulate pipeline progress purely from
-# elapsed wall-clock time since creation. Deleted in V2, replaced by
-# the real orchestrator — no other code depends on this function.
-MOCK_PROCESSING_DURATION_SECONDS = 8
+PROCESSING_DURATION_SECONDS = 8
 
-MOCK_STAGES = [
+ANALYSIS_STAGES = [
     (0, 'repository_discovery', 10, 'Fetching repository metadata'),
-    (2, 'architecture_analysis', 40, 'Mapping project components'),
-    (4, 'risk_analysis', 60, 'Identifying technical risks'),
-    (6, 'project_memory', 80, 'Reconstructing project history'),
+    (2, 'repository_tree', 30, 'Reading repository tree'),
+    (4, 'architecture_analysis', 55, 'Mapping project components'),
+    (6, 'risk_analysis', 75, 'Identifying technical risks'),
+    (7, 'project_memory', 90, 'Reconstructing project history'),
 ]
 
 
@@ -47,23 +46,42 @@ def _get_custom_error_response(message: str, status_code: int):
     return Response({'error': message}, status=status_code)
 
 
-def sync_mock_progress(analysis: Analysis) -> Analysis:
+def sync_analysis_progress(analysis: Analysis) -> Analysis:
     if analysis.status in ('completed', 'failed'):
         return analysis
 
     elapsed = (datetime.now(timezone.utc) - analysis.created_at).total_seconds()
 
-    if elapsed >= MOCK_PROCESSING_DURATION_SECONDS:
-        analysis.status = 'completed'
-        analysis.current_stage = 'completed'
-        analysis.progress = 100
-        analysis.status_message = 'Analysis complete'
-        analysis.final_analysis = mock_data.build_mock_final_analysis(analysis)
+    if elapsed >= PROCESSING_DURATION_SECONDS:
+        analysis.current_stage = 'finalizing'
+        analysis.progress = 95
+        analysis.status_message = 'Finalizing repository intelligence'
+        analysis.save()
+
+        try:
+            analysis.final_analysis = build_repository_analysis(analysis)
+            analysis.repository_data = analysis.final_analysis.get('repository')
+            analysis.architecture_data = analysis.final_analysis.get('architecture')
+            analysis.risk_data = analysis.final_analysis.get('risks')
+            analysis.memory_data = analysis.final_analysis.get('project_memory')
+            analysis.continuity_data = analysis.final_analysis.get('continuity_plan')
+            analysis.status = 'completed'
+            analysis.current_stage = 'completed'
+            analysis.progress = 100
+            analysis.status_message = 'Analysis complete'
+            analysis.error_message = ''
+        except RepositoryAnalysisError as exc:
+            analysis.status = 'failed'
+            analysis.current_stage = 'failed'
+            analysis.progress = 100
+            analysis.status_message = 'Analysis failed'
+            analysis.error_message = str(exc)
+
         analysis.save()
         return analysis
 
-    stage, progress, message = MOCK_STAGES[0][1], MOCK_STAGES[0][2], MOCK_STAGES[0][3]
-    for threshold, stage_name, stage_progress, stage_message in MOCK_STAGES:
+    stage, progress, message = ANALYSIS_STAGES[0][1], ANALYSIS_STAGES[0][2], ANALYSIS_STAGES[0][3]
+    for threshold, stage_name, stage_progress, stage_message in ANALYSIS_STAGES:
         if elapsed >= threshold:
             stage, progress, message = stage_name, stage_progress, stage_message
 
@@ -114,14 +132,23 @@ class CreateAnalysisView(APIView):
 class AnalysisStatusView(APIView):
     def get(self, request, analysis_id):
         analysis = get_object_or_404(Analysis, id=analysis_id)
-        analysis = sync_mock_progress(analysis)
+        analysis = sync_analysis_progress(analysis)
         return Response(AnalysisStatusSerializer(analysis).data)
 
 
 class AnalysisDetailView(APIView):
     def get(self, request, analysis_id):
         analysis = get_object_or_404(Analysis, id=analysis_id)
-        analysis = sync_mock_progress(analysis)
+        analysis = sync_analysis_progress(analysis)
+
+        if analysis.status == 'failed':
+            return Response(
+                {
+                    'status': analysis.status,
+                    'error': analysis.error_message or 'Analysis failed.',
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
         if analysis.status != 'completed':
             return Response(
@@ -138,7 +165,7 @@ class AnalysisDetailView(APIView):
 class AskRepoMindView(APIView):
     def post(self, request, analysis_id):
         analysis = get_object_or_404(Analysis, id=analysis_id)
-        analysis = sync_mock_progress(analysis)
+        analysis = sync_analysis_progress(analysis)
 
         if analysis.status != 'completed':
             return Response(
@@ -149,5 +176,5 @@ class AskRepoMindView(APIView):
         serializer = AskQuestionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        answer = mock_data.build_mock_answer(serializer.validated_data['question'], analysis)
+        answer = answer_question(serializer.validated_data['question'], analysis.final_analysis or {})
         return Response(answer, status=status.HTTP_200_OK)

@@ -32,11 +32,12 @@ RepoMind is an Agentic Project Intelligence and Engineering Knowledge Continuity
 
 ## Backend Integration
 
-The application is designed to be easily connected to a Django REST Framework backend.
+The application is connected to the Django REST Framework backend by default.
 
 - All API logic is centralized in `src/services/api.ts`.
-- There is a `USE_MOCK_DATA` flag in `api.ts`. Set it to `false` to enable real API calls.
+- Set `VITE_USE_MOCK_DATA=true` only when you want to run the UI without the backend.
 - The base URL is configured via `VITE_API_BASE_URL` (defaults to `http://localhost:8000/api`).
+- The Django backend must be running on port `8000` unless you change `VITE_API_BASE_URL`.
 
 ## Project Structure
 
