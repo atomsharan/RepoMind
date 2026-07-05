@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import pymysql
 from decouple import config
@@ -55,19 +56,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+DB_ENGINE = config('DB_ENGINE', default='django.db.backends.mysql')
+
 DATABASES = {
     'default': {
-        'ENGINE': config('DB_ENGINE', default='django.db.backends.mysql'),
+        'ENGINE': DB_ENGINE,
         'NAME': config('DB_NAME', default='repo_mind'),
         'USER': config('DB_USER', default='root'),
-        'PASSWORD': config('DB_PASSWORD', default=''),
+        'PASSWORD': config('DB_PASSWORD', default='12345678'),
         'HOST': config('DB_HOST', default='127.0.0.1'),
         'PORT': config('DB_PORT', default='3306'),
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
     }
 }
+
+if DB_ENGINE == 'django.db.backends.mysql':
+    DATABASES['default']['OPTIONS'] = {
+        'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+    }
+
+if 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -89,6 +102,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 # If the frontend is on an unpredictable origin (e.g. tunneled demo), swap to:
 # CORS_ALLOW_ALL_ORIGINS = True
@@ -113,6 +128,7 @@ LLM_PROVIDER = config('LLM_PROVIDER', default='gemini')
 LLM_FALLBACK_PROVIDER = config('LLM_FALLBACK_PROVIDER', default='')
 LLM_TIMEOUT_SECONDS = config('LLM_TIMEOUT_SECONDS', default=60, cast=int)
 LLM_JSON_RETRIES = config('LLM_JSON_RETRIES', default=1, cast=int)
+LLM_ENRICHMENT_ENABLED = config('LLM_ENRICHMENT_ENABLED', default=True, cast=bool)
 
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-1.5-flash')

@@ -16,10 +16,11 @@ class AnalysisCreateResponseSerializer(serializers.ModelSerializer):
 
 class AnalysisStatusSerializer(serializers.ModelSerializer):
     message = serializers.CharField(source='status_message')
+    error = serializers.CharField(source='error_message', required=False, allow_blank=True)
 
     class Meta:
         model = Analysis
-        fields = ['status', 'current_stage', 'progress', 'message']
+        fields = ['status', 'current_stage', 'progress', 'message', 'error']
 
 
 class AskQuestionSerializer(serializers.Serializer):
